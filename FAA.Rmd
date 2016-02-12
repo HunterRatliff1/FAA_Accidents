@@ -2,9 +2,15 @@
 title: "Intro to RStudio"
 author: "Hunter Ratliff"
 date: "October 29, 2015"
-output: html_document
+output: 
+  html_document:
+    theme: united
 ---
 
+**Source Code:** Github:
+[HunterRatliff1/FAA_Accidents](https://github.com/HunterRatliff1/FAA_Accidents)  
+**Published to:** `NA`   
+**Author:** `Hunter Ratliff` @[HunterRatliff1](https://twitter.com/HunterRatliff1)  
 
 
 ```{r global_options, include=FALSE}
@@ -21,50 +27,27 @@ knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figures/',
 
 These notes are based on the Udacity course covering Exploratory Data Analysis <https://www.udacity.com/course/data-analysis-with-r--ud651>.
 
-
-```{r BUILD | FAA}
-# Get the CSV & manipulate columns
+```{r}
+# Get the data & manipulate columns
 require(dplyr)
 require(reshape2)
 require(ggthemes)
-FAA <- read.csv("http://www.asias.faa.gov/pls/apex/f?p=100:93::FLOW_EXCEL_OUTPUT_R2161113456916636_en", na.strings = "") %>%
-  rename(date=EVENT_LCL_DATE,           time=EVENT_LCL_TIME,         city=LOC_CITY_NAME, 
-         state=LOC_STATE_NAME,          Event.Type_desc=EVENT_TYPE_DESC,
-         Reg.num=REGIST_NBR,            Flight.num=FLT_NBR,          Craft.Opperator=ACFT_OPRTR,
-         Craft.Make=ACFT_MAKE_NAME,     Craft.Model=ACFT_MODEL_NAME, Craft.Damage=ACFT_DMG_DESC,
-         Flight.Activitiy=FLT_ACTIVITY, Flight.Phase=FLT_PHASE,      Fatal=FATAL_FLAG,
-         Injury.Max.Level=MAX_INJ_LVL,  Description=RMK_TEXT) %>%
-    select(-UPDATED, -ENTRY_DATE, -LOC_CNTRY_NAME, -FAR_PART, -FSDO_DESC, -ACFT_MISSING_FLAG)
-
-# Create a date/time column 
-require(lubridate)
-FAA$date <- dmy(FAA$date) + hms(FAA$time)
-FAA$time <- NULL
-
-# Adjust capitlilzation errors
-require(stringi)
-FAA$city <- stri_trans_totitle(FAA$city)
-FAA$city <- as.factor(FAA$city)
-FAA$Description <- stri_trans_totitle(FAA$Description)
-FAA$Craft.Opperator  <- stri_trans_totitle(FAA$Craft.Opperator)
-FAA$Craft.Opperator <- as.factor(FAA$Craft.Opperator)
-
-# Geocode the incidents 
 require(ggmap)
-FAA <- bind_cols(FAA, geocode(paste0(FAA$city, ", ",FAA$state)))
-
-
-FAA <- melt(data = FAA, measure.vars = c("FLT_CRW_INJ_NONE", "FLT_CRW_INJ_MINOR", "FLT_CRW_INJ_SERIOUS", "FLT_CRW_INJ_FATAL", "FLT_CRW_INJ_UNK","CBN_CRW_INJ_NONE", "CBN_CRW_INJ_MINOR", "CBN_CRW_INJ_SERIOUS", "CBN_CRW_INJ_FATAL", "CBN_CRW_INJ_UNK","PAX_INJ_NONE", "PAX_INJ_MINOR", "PAX_INJ_SERIOUS", "PAX_INJ_FATAL", "PAX_INJ_UNK","GRND_INJ_NONE", "GRND_INJ_MINOR", "GRND_INJ_SERIOUS", "GRND_INJ_FATAL", "GRND_INJ_UNK"), na.rm = T, variable.name = "Injury.Type", value.name = "Injury.Count")
-
-FAA$Fatal <- ifelse(is.na(FAA$Fatal), "No", "Yes")
-
-FAA$Injury.Type <- gsub("PAX_INJ_", "Passanger ", FAA$Injury.Type)
-FAA$Injury.Type <- gsub("CBN_CRW_INJ_", "Cabin Crew ", FAA$Injury.Type)
-FAA$Injury.Type <- gsub("FLT_CRW_INJ_", "Flight Crew ", FAA$Injury.Type)
-
-FAA$Flight.Phase <- stri_trans_totitle(FAA$Flight.Phase)
 ```
-*Source:* <http://www.asias.faa.gov/pls/apex/f?p=100:93::FLOW_EXCEL_OUTPUT_R2161113456916636_en>
+
+# Load data
+
+I compiled this data using [FAA data](https://goo.gl/9xI1eg) on Preliminary Accident and Incident 
+Notices. The data can be downloaded directly into R, and transformed into the same format that 
+I'll be using by running the `wrangle.R` script that I have posted to Github. I'll read in the data, 
+as a RDS file, but for convince I've also provided the data as a 
+[CSV file](https://github.com/HunterRatliff1/FAA_Accidents/blob/master/FAA-data.csv).
+
+```{r}
+FAA <- readRDS("FAA-data.RDS")
+```
+
+Next, I'll build a map of the United States, and plot the data
 
 ```{r BUILD | Map}
 # Map
@@ -72,8 +55,9 @@ US <- qmap("United States", zoom=4, maptype = "toner-lite", source = "stamen")
 ```
 
 
+## Figure 01
 
-```{r Fig01 | Crash Location}
+```{r Fig01 | Crash Location, echo=T}
 US + stat_density2d(aes(x=lon, y=lat, fill=..level.., alpha=..level..), geom="polygon", data=FAA) +
   geom_point(data=FAA, aes(x=lon, y=lat)) +
   scale_fill_gradient(low="yellow", high="blue") + 
@@ -81,11 +65,15 @@ US + stat_density2d(aes(x=lon, y=lat, fill=..level.., alpha=..level..), geom="po
   labs(title="Density of Plane Crashes Reported by FAA")
 ```
 
-```{r Fig02 | Max Injury Geospace}
+## Figure 02
+
+```{r Fig02 | Max Injury Geospace, echo=T}
 US + geom_point(data=FAA, aes(x=lon, y=lat, shape=Craft.Damage, color=Injury.Max.Level))
 ```
 
-```{r Fig03 | Injuries vs Phase of Flight}
+## Figure 03
+
+```{r Fig03 | Injuries vs Phase of Flight, echo=T}
 ggplot(FAA, aes(x=Flight.Phase, y=Injury.Type)) + 
   geom_bin2d(aes(alpha=Injury.Count)) + 
   scale_fill_continuous(low="blue", high="red", name="Frequency") +
@@ -94,11 +82,42 @@ ggplot(FAA, aes(x=Flight.Phase, y=Injury.Type)) +
   theme_fivethirtyeight() + theme(axis.text.x = element_text(angle=45))
 ```
 
-```{r Fig04 | Max Injury Date}
+## Figure 04
+
+```{r Fig04 | Max Injury Date, echo=T}
 ggplot(FAA, aes(x=Fatal, y=date)) + 
   geom_violin() + 
-  # scale_fill_continuous(low="blue", high="red", name="Frequency") +
-  # scale_alpha_continuous(name="Count") +
   labs(title="Injuries vs Phase of Flight") + 
-  theme_fivethirtyeight() + theme(axis.text.x = element_text(angle=45))
+  theme_fivethirtyeight() + 
+  theme(axis.text.x = element_text(angle=45))
+```
+
+## License & Contact
+
+```
+--- LICENSE ---
+
+Copyright (C) 2016 Hunter Ratliff
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+```
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+In the spirit of [Reproducible Research](https://cran.r-project.org/web/views/ReproducibleResearch.html),
+below is the information About the R Session at the time it was compiled:
+
+```{r Session_info, echo=TRUE, collapse=TRUE}
+devtools::session_info()
 ```
